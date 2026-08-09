@@ -1,0 +1,16 @@
+{
+  "network": "studionet",
+  "chainId": 61999,
+  "accessPass": {
+    "hash": "0xbf01e2bb29a747e8a267414e93bb5615dfcf8eb43440c60195f66d624e02ddbf",
+    "address": "0xdaeb94393b21c2A3D62EbD3132Ecb2D362eE0F3d"
+  },
+  "relayRouter": {
+    "hash": "0x2abfba2582591c322682bd0d06ac5caab5bd6ef5acdcb5200c5aab0aa61af1d5",
+    "address": "0x0A123de5fc7c4C8290c990129770b8b9cEaB88cf"
+  },
+  "verdictRegistry": {
+    "hash": "0x0412ef90b459eb6d0b894d8dbc5b29531140f388cae7f9b9aab579e723884b6f",
+    "address": "0xc113a796aC8Bd86de8875F3e37b9Ac182244d6e9"
+  }
+}

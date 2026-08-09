@@ -1,0 +1,14 @@
+{
+  "name": "@guardian/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node scripts/lint-contracts.mjs",
+    "test": "python -m unittest discover -s tests -p test_*.py",
+    "deploy": "node scripts/deploy.mjs"
+  },
+  "dependencies": {
+    "genlayer-js": "^1.1.8"
+  }
+}
