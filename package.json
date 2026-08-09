@@ -1,0 +1,36 @@
+{
+  "name": "guardian-lens",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "contracts/genlayer"
+  ],
+  "scripts": {
+    "dev": "npm --workspace @guardian/web run dev",
+    "build": "npm --workspace @guardian/web run build",
+    "lint": "npm --workspace @guardian/web run lint",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "contract:test": "npm --workspace @guardian/contracts run test",
+    "contract:lint": "npm --workspace @guardian/contracts run lint",
+    "smoke:studionet": "node scripts/smoke-studionet.mjs",
+    "check": "npm run typecheck && npm run test && npm run contract:lint && npm run contract:test && npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.0",
+    "jsdom": "^29.1.1",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.10"
+  }
+}
