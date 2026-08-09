@@ -1,0 +1,19 @@
+{
+  "name": "@guardian/genlayer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@guardian/shared": "*",
+    "genlayer-js": "^1.1.8"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2"
+  }
+}
