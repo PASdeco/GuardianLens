@@ -5,13 +5,13 @@ import { evidenceManifestSchema } from "@guardian/shared";
 import {
   authorizeRelaySession,
   consumeRelayIntent,
-  readAccess,
   readCase,
   readRelaySession,
   readVerdict,
   relayCreateCase,
   relayRequestAssessment
 } from "@guardian/genlayer";
+import { readAccessServer } from "@/lib/genlayer-rpc";
 
 const dailyRequests = new Map<string, { day: string; count: number }>();
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "The assessment authorization does not match the connected wallet." }, { status: 401 });
     }
 
-    if (!(await readAccess(ownerWallet, accessPassAddress))) {
+    if (!(await readAccessServer(ownerWallet, accessPassAddress))) {
       return NextResponse.json({ message: "Activate Guardian Lens access with the one-time 20 GEN payment before scanning." }, { status: 402 });
     }
 
