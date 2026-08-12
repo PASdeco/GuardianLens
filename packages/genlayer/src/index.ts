@@ -51,8 +51,8 @@ export async function waitForSuccessfulReceipt(client: ReturnType<typeof createC
   const receipt = await client.waitForTransactionReceipt({
     hash: hash as Parameters<typeof client.waitForTransactionReceipt>[0]["hash"],
     status: TransactionStatus.ACCEPTED,
-    interval: 5000,
-    retries: 120
+    interval: 15000,
+    retries: 80
   });
   const results: Array<{ result: string; stderr: string; detail: string }> = [];
   const visit = (value: unknown) => {
