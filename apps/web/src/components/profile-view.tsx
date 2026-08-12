@@ -17,12 +17,8 @@ import {
   WalletCards
 } from "lucide-react";
 import { ACCESS_PRICE_GEN } from "@guardian/shared";
-import {
-  createGuardianWalletClient,
-  readAccess,
-  submitAccessPayment,
-  waitForSuccessfulReceipt
-} from "@guardian/genlayer";
+import { createGuardianWalletClient, submitAccessPayment } from "@guardian/genlayer";
+import { readAccessClient, readPaymentTransactionClient } from "@/lib/genlayer-client";
 import { useGuardianAuth } from "@/lib/auth";
 import { useGuardianStore } from "@/lib/store";
 import { useGuardianTheme } from "@/lib/theme";
@@ -49,7 +45,7 @@ export function ProfileView() {
       return;
     }
     setAccessChecking(true);
-    void readAccess(auth.walletAddress, accessPassAddress)
+    void readAccessClient(auth.walletAddress, accessPassAddress)
       .then((active) => {
         if (!cancelled) setAccessActive(active);
       })
@@ -93,13 +89,14 @@ export function ProfileView() {
       const client = createGuardianWalletClient(auth.walletAddress, provider);
       const hash = await submitAccessPayment(client, accessPassAddress);
       setMessage("Payment submitted. Waiting for GenLayer validators to accept it…");
-      await waitForSuccessfulReceipt(client, hash);
       let active = false;
-      for (let attempt = 0; attempt < 24 && !active; attempt += 1) {
-        active = await readAccess(auth.walletAddress, accessPassAddress);
+      for (let attempt = 0; attempt < 20 && !active; attempt += 1) {
+        const transaction = await readPaymentTransactionClient(hash).catch(() => null);
+        if (transaction?.failed) throw new Error("The 20 GEN access payment failed on Studionet. No access was charged.");
+        active = await readAccessClient(auth.walletAddress, accessPassAddress).catch(() => false);
         if (!active) {
-          setMessage("Payment accepted. Waiting for the access entitlement to finalize on GenLayer…");
-          await new Promise((resolve) => window.setTimeout(resolve, 5000));
+          setMessage(transaction?.accepted ? "Payment accepted. Waiting for the access entitlement to finalize on GenLayer…" : "Payment submitted. Waiting for Studionet to process it…");
+          await new Promise((resolve) => window.setTimeout(resolve, 20000));
         }
       }
       setAccessActive(active);
