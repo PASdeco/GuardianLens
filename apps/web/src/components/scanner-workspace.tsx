@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { buildEvidenceManifest, detectCommercialSignals, extractImageText, prepareEvidenceAsset } from "@guardian/evidence";
 import { assessmentSchema, type EvidenceAsset, type GuardianScan } from "@guardian/shared";
-import { readAccess } from "@guardian/genlayer";
+import { readAccessClient } from "@/lib/genlayer-client";
 import { useGuardianStore } from "@/lib/store";
 import { useGuardianAuth } from "@/lib/auth";
 import { RiskBadge } from "./risk-badge";
@@ -95,7 +95,7 @@ export function ScannerWorkspace() {
         throw new Error("Connect your wallet before requesting a validator assessment.");
       }
       const accessPassAddress = process.env.NEXT_PUBLIC_ACCESS_PASS_ADDRESS || "";
-      if (!accessPassAddress || !(await readAccess(auth.walletAddress, accessPassAddress))) {
+      if (!accessPassAddress || !(await readAccessClient(auth.walletAddress, accessPassAddress))) {
         throw new Error("Your 20 GEN access payment is still finalizing. Wait until Profile shows ‘Access active’, then submit the scan again.");
       }
       const claims = claimsText.split(/\n|;/).map((value) => value.trim()).filter(Boolean);

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AlertOctagon, ArrowLeft, BellPlus, Check, Copy, ExternalLink, FileCheck2, Flag, Globe2, LockKeyhole, RefreshCcw, Share2, ShieldCheck } from "lucide-react";
-import { actionLabel, assessmentSchema, type AssessmentStatus } from "@guardian/shared";
-import { readAccess, readAssessmentTransaction, readVerdict } from "@guardian/genlayer";
+import { actionLabel, assessmentSchema, assessmentStatusSchema } from "@guardian/shared";
+import { readAccessClient } from "@/lib/genlayer-client";
 import { useGuardianStore } from "@/lib/store";
 import { useGuardianAuth } from "@/lib/auth";
 import { RiskBadge } from "./risk-badge";
@@ -19,53 +19,68 @@ export function ScanDetail({ scanId }: { scanId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const scan = getScan(scanId);
   const transactionHash = scan?.transactionHash || "";
-  const hasAssessment = Boolean(scan?.assessment);
-  const scanStatus = scan?.status;
 
   useEffect(() => {
     if (!scan || !transactionHash || scan.id.startsWith("demo-") || ["FINALIZED", "UNDETERMINED", "FAILED"].includes(scan.status)) return;
     let cancelled = false;
-    let attempts = 0;
-    const registryAddress = process.env.NEXT_PUBLIC_VERDICT_REGISTRY_ADDRESS || "";
+    let timeoutId: number | undefined;
+    let retryDelay = 15_000;
+    let lastStatus = scan.status;
+    let hasStoredAssessment = Boolean(scan.assessment);
+
+    const schedule = (delay: number) => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      timeoutId = window.setTimeout(() => void poll(), delay);
+    };
+
     const poll = async () => {
-      if (cancelled || attempts >= 180 || !registryAddress) return;
-      attempts += 1;
+      if (cancelled || document.visibilityState !== "visible") return;
       try {
-        const [transaction, currentAssessment] = await Promise.all([
-          readAssessmentTransaction(transactionHash),
-          hasAssessment ? Promise.resolve(scan.assessment) : readVerdict(scan.id, registryAddress)
-        ]);
+        const response = await fetch(`/api/genlayer/status?caseId=${encodeURIComponent(scan.id)}&hash=${encodeURIComponent(transactionHash)}`, { cache: "no-store" });
+        const body = await response.json() as { status?: unknown; verdict?: unknown; retryAfterMs?: number; rateLimited?: boolean; message?: string };
         if (cancelled) return;
-        if (transaction?.executionResultName === "FINISHED_WITH_ERROR") {
-          updateScan(scan.id, { status: "FAILED" });
+        if (response.status === 429) {
+          retryDelay = Math.min(Math.max(body.retryAfterMs || retryDelay * 2, 30_000), 120_000);
+          setMessage("Studionet is temporarily busy. Status checks have been slowed automatically; your transaction remains safe on-chain.");
+          schedule(retryDelay);
           return;
         }
-        const nextStatus = transaction?.statusName as AssessmentStatus | undefined;
-        if (currentAssessment) {
-          const resolvedStatus: AssessmentStatus = currentAssessment.risk_level === "UNDETERMINED"
-            ? "UNDETERMINED"
-            : nextStatus === "FINALIZED"
-              ? "FINALIZED"
-              : "ACCEPTED";
+        if (!response.ok) throw new Error(body.message || "GenLayer status is temporarily unavailable.");
+        const parsedStatus = assessmentStatusSchema.safeParse(body.status);
+        const parsedAssessment = body.verdict ? assessmentSchema.safeParse(body.verdict) : null;
+        if (parsedStatus.success && (parsedStatus.data !== lastStatus || (parsedAssessment?.success && !hasStoredAssessment))) {
           updateScan(scan.id, {
-            assessment: currentAssessment,
-            status: resolvedStatus
+            status: parsedStatus.data,
+            ...(parsedAssessment?.success ? { assessment: parsedAssessment.data } : {})
           });
-          if (["FINALIZED", "UNDETERMINED"].includes(resolvedStatus)) return;
+          lastStatus = parsedStatus.data;
+          if (parsedAssessment?.success) hasStoredAssessment = true;
         }
-        if (nextStatus && ["PENDING", "PROPOSING", "COMMITTING", "ACCEPTED", "UNDER_APPEAL"].includes(nextStatus)) {
-          updateScan(scan.id, { status: nextStatus });
-        }
+        if (parsedStatus.success && ["FINALIZED", "UNDETERMINED", "FAILED"].includes(parsedStatus.data)) return;
+        retryDelay = Math.max(body.retryAfterMs || 15_000, 15_000);
+        if (!body.rateLimited && message.startsWith("Studionet is temporarily busy")) setMessage("");
+        schedule(retryDelay);
       } catch {
-        // RPC reads can briefly fail while a consensus round advances; keep polling.
+        retryDelay = Math.min(Math.max(retryDelay * 2, 30_000), 120_000);
+        schedule(retryDelay);
       }
-      if (!cancelled && attempts < 180) window.setTimeout(() => void poll(), 5000);
     };
+
+    const handleVisibility = () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      if (document.visibilityState === "visible") {
+        retryDelay = 15_000;
+        void poll();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
     void poll();
     return () => {
       cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [scan?.id, transactionHash, hasAssessment, scanStatus, updateScan]);
+  }, [scan?.id, transactionHash, updateScan]);
 
   if (!scan) return <div className="empty-state"><ShieldCheck /><h1>Assessment not found</h1><Link href="/">Return to scanner</Link></div>;
   const assessment = scan.assessment;
@@ -80,7 +95,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
     setMessage("");
     try {
       const accessPassAddress = process.env.NEXT_PUBLIC_ACCESS_PASS_ADDRESS || "";
-      if (!accessPassAddress || !(await readAccess(auth.walletAddress, accessPassAddress))) {
+      if (!accessPassAddress || !(await readAccessClient(auth.walletAddress, accessPassAddress))) {
         throw new Error("Your 20 GEN access payment is still finalizing. Wait until Profile shows ‘Access active’, then retry.");
       }
       const authorizationMessage = `Guardian Lens assessment\nCase: ${scan.id}\nWallet: ${auth.walletAddress.toLowerCase()}\nEvidence: ${scan.manifest.evidence_root_hash}`;
