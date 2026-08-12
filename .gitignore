@@ -11,4 +11,8 @@ test-results/
 __pycache__/
 *.pyc
 .DS_Store
-docs/
+
+.vercel
+
+apps/web/tsconfig.tsbuildinfo
+apps/web/tsconfig.tsbuildinfo
