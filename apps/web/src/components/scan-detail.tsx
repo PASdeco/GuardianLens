@@ -19,14 +19,17 @@ export function ScanDetail({ scanId }: { scanId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const scan = getScan(scanId);
   const transactionHash = scan?.transactionHash || "";
+  const currentScanId = scan?.id;
+  const currentScanStatus = scan?.status;
+  const hasCurrentAssessment = Boolean(scan?.assessment);
 
   useEffect(() => {
-    if (!scan || !transactionHash || scan.id.startsWith("demo-") || ["FINALIZED", "UNDETERMINED", "FAILED"].includes(scan.status)) return;
+    if (!currentScanId || !transactionHash || currentScanId.startsWith("demo-") || ["FINALIZED", "UNDETERMINED", "FAILED"].includes(currentScanStatus || "")) return;
     let cancelled = false;
     let timeoutId: number | undefined;
     let retryDelay = 15_000;
-    let lastStatus = scan.status;
-    let hasStoredAssessment = Boolean(scan.assessment);
+    let lastStatus = currentScanStatus;
+    let hasStoredAssessment = hasCurrentAssessment;
 
     const schedule = (delay: number) => {
       if (cancelled || document.visibilityState !== "visible") return;
@@ -36,7 +39,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
     const poll = async () => {
       if (cancelled || document.visibilityState !== "visible") return;
       try {
-        const response = await fetch(`/api/genlayer/status?caseId=${encodeURIComponent(scan.id)}&hash=${encodeURIComponent(transactionHash)}`, { cache: "no-store" });
+        const response = await fetch(`/api/genlayer/status?caseId=${encodeURIComponent(currentScanId)}&hash=${encodeURIComponent(transactionHash)}`, { cache: "no-store" });
         const body = await response.json() as { status?: unknown; verdict?: unknown; retryAfterMs?: number; rateLimited?: boolean; message?: string };
         if (cancelled) return;
         if (response.status === 429) {
@@ -49,7 +52,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
         const parsedStatus = assessmentStatusSchema.safeParse(body.status);
         const parsedAssessment = body.verdict ? assessmentSchema.safeParse(body.verdict) : null;
         if (parsedStatus.success && (parsedStatus.data !== lastStatus || (parsedAssessment?.success && !hasStoredAssessment))) {
-          updateScan(scan.id, {
+          updateScan(currentScanId, {
             status: parsedStatus.data,
             ...(parsedAssessment?.success ? { assessment: parsedAssessment.data } : {})
           });
@@ -58,7 +61,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
         }
         if (parsedStatus.success && ["FINALIZED", "UNDETERMINED", "FAILED"].includes(parsedStatus.data)) return;
         retryDelay = Math.max(body.retryAfterMs || 15_000, 15_000);
-        if (!body.rateLimited && message.startsWith("Studionet is temporarily busy")) setMessage("");
+        if (!body.rateLimited) setMessage((current) => current.startsWith("Studionet is temporarily busy") ? "" : current);
         schedule(retryDelay);
       } catch {
         retryDelay = Math.min(Math.max(retryDelay * 2, 30_000), 120_000);
@@ -80,7 +83,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
       if (timeoutId) window.clearTimeout(timeoutId);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [scan?.id, transactionHash, updateScan]);
+  }, [currentScanId, currentScanStatus, hasCurrentAssessment, transactionHash, updateScan]);
 
   if (!scan) return <div className="empty-state"><ShieldCheck /><h1>Assessment not found</h1><Link href="/">Return to scanner</Link></div>;
   const assessment = scan.assessment;

@@ -31,34 +31,42 @@ export function ProfileView() {
   const [statusUpdates, setStatusUpdates] = useState(true);
   const [message, setMessage] = useState("");
   const [accessActive, setAccessActive] = useState(false);
-  const [accessChecking, setAccessChecking] = useState(false);
+  const [accessWallet, setAccessWallet] = useState("");
+  const [accessCheckedKey, setAccessCheckedKey] = useState("");
   const [paymentPending, setPaymentPending] = useState(false);
   const accessPassAddress = process.env.NEXT_PUBLIC_ACCESS_PASS_ADDRESS || "";
   const accessConfigured = Boolean(accessPassAddress);
+  const accessRequestKey = auth.walletAddress && accessPassAddress ? `${auth.walletAddress}:${accessPassAddress}` : "";
+  const accessChecking = Boolean(accessRequestKey && accessCheckedKey !== accessRequestKey);
+  const accessActiveForWallet = accessActive && accessWallet === auth.walletAddress && accessConfigured;
   const wallet = auth.walletAddress ? `${auth.walletAddress.slice(0, 8)}...${auth.walletAddress.slice(-6)}` : "No wallet connected";
   const finalized = scans.filter((scan) => scan.status === "FINALIZED").length;
 
   useEffect(() => {
     let cancelled = false;
     if (!auth.walletAddress || !accessPassAddress) {
-      setAccessActive(false);
       return;
     }
-    setAccessChecking(true);
     void readAccessClient(auth.walletAddress, accessPassAddress)
       .then((active) => {
-        if (!cancelled) setAccessActive(active);
+        if (!cancelled) {
+          setAccessActive(active);
+          setAccessWallet(active ? auth.walletAddress : "");
+        }
       })
       .catch(() => {
-        if (!cancelled) setAccessActive(false);
+        if (!cancelled) {
+          setAccessActive(false);
+          setAccessWallet("");
+        }
       })
       .finally(() => {
-        if (!cancelled) setAccessChecking(false);
+        if (!cancelled) setAccessCheckedKey(accessRequestKey);
       });
     return () => {
       cancelled = true;
     };
-  }, [auth.walletAddress, accessPassAddress]);
+  }, [accessRequestKey, auth.walletAddress, accessPassAddress]);
 
   function connectAccount() {
     setMessage("");
@@ -78,7 +86,7 @@ export function ProfileView() {
       setMessage("Access activation will become available when the Guardian Lens testnet launch is connected.");
       return;
     }
-    if (accessActive) {
+    if (accessActiveForWallet) {
       setMessage("Guardian Lens access is already active for this wallet.");
       return;
     }
@@ -100,6 +108,7 @@ export function ProfileView() {
         }
       }
       setAccessActive(active);
+      setAccessWallet(active ? auth.walletAddress : "");
       setMessage(active ? "Guardian Lens access is active. Sponsored testnet scans are now available." : "Payment is still finalizing on GenLayer. Keep this page open and try your scan once it shows Access active.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The access payment could not be completed.");
@@ -173,9 +182,9 @@ export function ProfileView() {
             <h2>One unlock. Every check.</h2>
             <p>Activate Guardian Lens once with testnet GEN. There is no subscription or recurring charge.</p>
             <div className="membership-price"><strong>{ACCESS_PRICE_GEN}</strong><span><b>test GEN</b><small>one-time access</small></span></div>
-            <p className={`membership-status ${accessActive ? "active" : ""}`}><span /> {accessChecking ? "Checking access…" : accessActive ? "Access active" : "Activation required"}</p>
+            <p className={`membership-status ${accessActiveForWallet ? "active" : ""}`}><span /> {accessChecking ? "Checking access…" : accessActiveForWallet ? "Access active" : "Activation required"}</p>
             <ul><li><Check /> Full product assessments</li><li><Check /> Sponsored testnet scans</li><li><Check /> History, reports and watchlist</li></ul>
-            <button className="membership-button" type="button" onClick={() => void activateAccess()} disabled={paymentPending || accessChecking}>{paymentPending ? "Waiting for validators…" : accessActive ? "Access active" : auth.authenticated ? "Activate access" : "Connect & unlock"}<ChevronRight /></button>
+            <button className="membership-button" type="button" onClick={() => void activateAccess()} disabled={paymentPending || accessChecking}>{paymentPending ? "Waiting for validators…" : accessActiveForWallet ? "Access active" : auth.authenticated ? "Activate access" : "Connect & unlock"}<ChevronRight /></button>
           </section>
 
           <section className="profile-card privacy-card" id="privacy">
