@@ -8,10 +8,7 @@ if (existsSync(rootEnvPath)) process.loadEnvFile(rootEnvPath);
 const nextConfig: NextConfig = {
   distDir: "../../.next",
   allowedDevOrigins: ["127.0.0.1"],
-  transpilePackages: ["@guardian/shared", "@guardian/evidence", "@guardian/database", "@guardian/genlayer", "@guardian/ui"],
-  experimental: {
-    optimizePackageImports: ["lucide-react"]
-  }
+  transpilePackages: ["@guardian/shared", "@guardian/evidence", "@guardian/database", "@guardian/genlayer", "@guardian/ui"]
 };
 
 export default nextConfig;
