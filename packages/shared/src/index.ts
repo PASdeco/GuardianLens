@@ -10,7 +10,7 @@ export const STUDIONET = {
 
 export const ACCESS_PRICE_GEN = 20;
 export const ACCESS_PRICE_WEI = 20n * 10n ** 18n;
-export const POLICY_VERSION = "GL-POLICY-1";
+export const POLICY_VERSION = "GL-POLICY-2";
 
 export const riskLevelSchema = z.enum([
   "LOW_CONCERN",
@@ -27,6 +27,18 @@ export const claimsStatusSchema = z.enum(["SUPPORTED", "PARTIALLY_SUPPORTED", "U
 export const sponsorshipStatusSchema = z.enum(["DISCLOSED", "UNDISCLOSED_SIGNALS", "NONE_FOUND", "UNKNOWN"]);
 export const sellerStatusSchema = z.enum(["VERIFIED", "LIMITED_INFORMATION", "HIGH_RISK", "UNKNOWN"]);
 export const actionCodeSchema = z.enum(["PROCEED", "VERIFY_FIRST", "AVOID", "STOP_USE", "SEEK_PROFESSIONAL_HELP"]);
+export const identityMatchSchema = z.enum(["CONFIRMED", "PARTIAL", "UNVERIFIED", "CONFLICTING"]);
+
+export const provenanceSchema = z.object({
+  source_id: z.string().min(1).max(96),
+  authority: z.string().min(1).max(96),
+  url: z.string().url().max(512),
+  query: z.string().max(240),
+  content_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  retrieved_at: z.number().int().positive(),
+  supported_findings: z.array(z.enum(["identity", "recall", "authority", "claims", "sponsorship", "seller"])).max(6)
+});
+export type Provenance = z.infer<typeof provenanceSchema>;
 
 export const assessmentStatusSchema = z.enum([
   "DRAFT",
@@ -63,7 +75,14 @@ export const assessmentSchema = z.object({
   sponsorship_status: sponsorshipStatusSchema,
   seller_status: sellerStatusSchema,
   recommended_action_code: actionCodeSchema,
+  identity_match: identityMatchSchema,
+  canonical_product_name: z.string().max(160),
+  canonical_manufacturer: z.string().max(160),
+  canonical_product_category: z.string().max(64),
   source_ids: z.array(z.string().min(1).max(96)).max(16),
+  provenance: z.array(provenanceSchema).max(16),
+  evidence_version: z.number().int().positive(),
+  evidence_snapshot_hash: z.string().regex(/^[a-f0-9]{64}$/),
   policy_version: z.literal(POLICY_VERSION),
   summary: z.string().min(1).max(500),
   reasoning: z.string().min(1).max(1200),
@@ -74,9 +93,11 @@ export type Assessment = z.infer<typeof assessmentSchema>;
 export const evidenceManifestSchema = z.object({
   evidence_root_hash: z.string().regex(/^[a-f0-9]{64}$/),
   source_manifest_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  manifest_hash: z.string().regex(/^[a-f0-9]{64}$/),
   policy_version: z.literal(POLICY_VERSION),
   product_name: z.string().min(1).max(160),
   manufacturer: z.string().max(160),
+  product_category: z.string().min(1).max(64),
   seller: z.string().max(160),
   barcode: z.string().max(64),
   lot_number: z.string().max(80),

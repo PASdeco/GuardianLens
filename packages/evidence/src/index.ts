@@ -44,6 +44,7 @@ export async function prepareEvidenceAsset(file: File, extractedText = ""): Prom
 export async function buildEvidenceManifest(input: {
   productName: string;
   manufacturer: string;
+  productCategory: string;
   seller: string;
   productUrl: string;
   barcode: string;
@@ -56,12 +57,13 @@ export async function buildEvidenceManifest(input: {
   const sourceUrls = input.productUrl ? [assertPublicHttpUrl(input.productUrl)] : [];
   const evidenceRoot = await sha256Text(JSON.stringify(input.evidence.map(({ sha256, extractedText }) => ({ sha256, extractedText }))));
   const sourceRoot = await sha256Text(JSON.stringify(sourceUrls));
-  return evidenceManifestSchema.parse({
+  const manifestPayload = {
     evidence_root_hash: evidenceRoot,
     source_manifest_hash: sourceRoot,
     policy_version: POLICY_VERSION,
     product_name: input.productName.trim(),
     manufacturer: input.manufacturer.trim(),
+    product_category: input.productCategory.trim(),
     seller: input.seller.trim(),
     barcode: input.barcode.trim(),
     lot_number: input.lotNumber.trim(),
@@ -69,7 +71,12 @@ export async function buildEvidenceManifest(input: {
     authority_claims: (input.authorityClaims ?? []).map((claim) => claim.trim()).filter(Boolean),
     sponsorship_signals: (input.sponsorshipSignals ?? []).map((signal) => signal.trim()).filter(Boolean),
     submitted_source_urls: sourceUrls,
-    regulatory_query_terms: [input.productName, input.manufacturer, input.barcode, input.lotNumber].map((term) => term.trim()).filter(Boolean),
+    regulatory_query_terms: [input.productName, input.manufacturer, input.productCategory, input.barcode, input.lotNumber].map((term) => term.trim()).filter(Boolean)
+  };
+  const manifestHash = await sha256Text(JSON.stringify(manifestPayload));
+  return evidenceManifestSchema.parse({
+    ...manifestPayload,
+    manifest_hash: manifestHash,
     submitted_at: new Date().toISOString()
   });
 }
