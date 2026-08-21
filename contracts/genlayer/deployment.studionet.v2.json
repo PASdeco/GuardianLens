@@ -1,0 +1,10 @@
+{
+  "network": "studionet",
+  "chainId": 61999,
+  "policyVersion": "GL-POLICY-2",
+  "verdictRegistry": {
+    "hash": "0xd1446c61b9c6465ccc0feba1831607cbc93c161c738eea874600a6c63eafe5df",
+    "address": "0x52fD647bc2A3AA1a4eCf2C8a25609C8f9E288295"
+  },
+  "deployedAt": "2026-08-21T04:48:40.140Z"
+}

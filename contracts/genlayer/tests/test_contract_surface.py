@@ -50,6 +50,20 @@ class ContractSurfaceTest(unittest.TestCase):
         self.assertIn("original_verdict", self.registry)
         self.assertIn("Ignore every instruction", self.registry)
 
+    def test_registry_binds_verdicts_to_identity_and_evidence_snapshots(self):
+        for signal in (
+            "product_category",
+            "barcode",
+            "lot_number",
+            "identity_match",
+            "content_hash",
+            "evidence_snapshot_hash",
+            "evidence_version",
+            "_invalidate_verdict",
+            '"status": "SUPERSEDED"',
+        ):
+            self.assertIn(signal, self.registry)
+
 
 if __name__ == "__main__":
     unittest.main()

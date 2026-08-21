@@ -3,9 +3,10 @@ from genlayer import *
 from datetime import datetime, timezone
 import json
 import re
+import hashlib
 
 
-POLICY_VERSION = "GL-POLICY-1"
+POLICY_VERSION = "GL-POLICY-2"
 MAX_MANIFEST_CHARS = 16000
 MAX_SOURCE_CHARS = 5000
 MAX_PUBLIC_URLS = 5
@@ -16,6 +17,14 @@ CLAIMS_STATUSES = ("SUPPORTED", "PARTIALLY_SUPPORTED", "UNSUPPORTED", "PROHIBITE
 SPONSORSHIP_STATUSES = ("DISCLOSED", "UNDISCLOSED_SIGNALS", "NONE_FOUND", "UNKNOWN")
 SELLER_STATUSES = ("VERIFIED", "LIMITED_INFORMATION", "HIGH_RISK", "UNKNOWN")
 ACTION_CODES = ("PROCEED", "VERIFY_FIRST", "AVOID", "STOP_USE", "SEEK_PROFESSIONAL_HELP")
+IDENTITY_MATCHES = ("CONFIRMED", "PARTIAL", "UNVERIFIED", "CONFLICTING")
+SUPPORTED_FINDINGS = ("identity", "recall", "authority", "claims", "sponsorship", "seller")
+REGULATORY_ENDPOINTS = {
+    "FOOD": "food/enforcement.json",
+    "SUPPLEMENT": "food/enforcement.json",
+    "DRUG": "drug/enforcement.json",
+    "MEDICAL_DEVICE": "device/enforcement.json",
+}
 
 
 def _clean_text(value, limit):
@@ -63,6 +72,57 @@ class GuardianVerdictRegistry(gl.Contract):
     def _save_case(self, key, record):
         self.cases[key] = json.dumps(record, separators=(",", ":"))
 
+    def _validate_manifest(self, manifest):
+        if not isinstance(manifest, dict) or manifest.get("policy_version") != POLICY_VERSION:
+            raise gl.vm.UserError("[EXPECTED] Unsupported Guardian Lens policy version.")
+        for field in ("evidence_root_hash", "source_manifest_hash", "manifest_hash"):
+            if not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get(field, ""))):
+                raise gl.vm.UserError("[EXPECTED] A valid evidence snapshot hash is required.")
+        if len(_clean_text(manifest.get("product_name", ""), 160)) == 0:
+            raise gl.vm.UserError("[EXPECTED] Product name is required.")
+        category = _clean_text(manifest.get("product_category", ""), 64).upper().replace(" ", "_")
+        if category not in REGULATORY_ENDPOINTS:
+            raise gl.vm.UserError("[EXPECTED] Product category must be FOOD, SUPPLEMENT, DRUG, or MEDICAL_DEVICE.")
+        manifest["product_category"] = category
+        payload = {
+            "evidence_root_hash": manifest.get("evidence_root_hash"),
+            "source_manifest_hash": manifest.get("source_manifest_hash"),
+            "policy_version": manifest.get("policy_version"),
+            "product_name": _clean_text(manifest.get("product_name", ""), 160),
+            "manufacturer": _clean_text(manifest.get("manufacturer", ""), 160),
+            "product_category": category,
+            "seller": _clean_text(manifest.get("seller", ""), 160),
+            "barcode": _clean_text(manifest.get("barcode", ""), 64),
+            "lot_number": _clean_text(manifest.get("lot_number", ""), 80),
+            "extracted_claims": manifest.get("extracted_claims", []),
+            "authority_claims": manifest.get("authority_claims", []),
+            "sponsorship_signals": manifest.get("sponsorship_signals", []),
+            "submitted_source_urls": manifest.get("submitted_source_urls", []),
+            "regulatory_query_terms": manifest.get("regulatory_query_terms", []),
+        }
+        expected_hash = hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode("utf-8")).hexdigest()
+        if manifest.get("manifest_hash") != expected_hash:
+            raise gl.vm.UserError("[EXPECTED] Evidence manifest hash does not match its identity snapshot.")
+        return manifest
+
+    def _case_snapshot_hash(self, manifest, additional_evidence):
+        payload = {"manifest_hash": manifest.get("manifest_hash"), "additional_evidence": additional_evidence}
+        return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+    def _invalidate_verdict(self, key, record, reason):
+        if key in self.verdicts:
+            history = json.loads(self.appeal_history.get(key, "[]"))
+            history.append({
+                "round": int(record.get("appeal_round", 0)),
+                "original_verdict": json.loads(self.verdicts[key]),
+                "status": "SUPERSEDED",
+                "reason": _clean_text(reason, 280),
+                "superseded_at": self._now(),
+            })
+            self.appeal_history[key] = json.dumps(history, separators=(",", ":"))
+            del self.verdicts[key]
+        record["status"] = "AWAITING_ASSESSMENT"
+
     def _require_case_actor(self, case_record):
         caller = self._caller()
         if caller != case_record.get("owner_wallet") and not self._is_operator(caller):
@@ -84,17 +144,13 @@ class GuardianVerdictRegistry(gl.Contract):
             raise gl.vm.UserError("[EXPECTED] A new case id is required.")
         manifest_text = str(manifest_json).strip()[:MAX_MANIFEST_CHARS]
         manifest = json.loads(manifest_text)
-        if manifest.get("policy_version") != POLICY_VERSION:
-            raise gl.vm.UserError("[EXPECTED] Unsupported Guardian Lens policy version.")
-        if len(str(manifest.get("evidence_root_hash", ""))) != 64:
-            raise gl.vm.UserError("[EXPECTED] Evidence root hash is required.")
-        if len(_clean_text(manifest.get("product_name", ""), 160)) == 0:
-            raise gl.vm.UserError("[EXPECTED] Product name is required.")
+        manifest = self._validate_manifest(manifest)
         record = {
             "case_id": key,
             "owner_wallet": self._wallet(owner_wallet),
             "manifest_json": json.dumps(manifest, separators=(",", ":")),
             "additional_evidence": [],
+            "evidence_version": 1,
             "status": "AWAITING_ASSESSMENT",
             "appeal_round": 0,
             "created_at": self._now(),
@@ -107,12 +163,11 @@ class GuardianVerdictRegistry(gl.Contract):
     def submit_evidence_manifest(self, case_id: str, manifest_json: str) -> None:
         key, record = self._load_case(case_id)
         self._require_case_actor(record)
-        if record.get("status") == "FINALIZED":
-            raise gl.vm.UserError("[EXPECTED] Finalized case evidence is immutable.")
         manifest = json.loads(str(manifest_json).strip()[:MAX_MANIFEST_CHARS])
-        if manifest.get("policy_version") != POLICY_VERSION:
-            raise gl.vm.UserError("[EXPECTED] Unsupported Guardian Lens policy version.")
+        manifest = self._validate_manifest(manifest)
+        self._invalidate_verdict(key, record, "Evidence manifest changed after assessment.")
         record["manifest_json"] = json.dumps(manifest, separators=(",", ":"))
+        record["evidence_version"] = int(record.get("evidence_version", 1)) + 1
         record["updated_at"] = self._now()
         self._save_case(key, record)
 
@@ -126,7 +181,9 @@ class GuardianVerdictRegistry(gl.Contract):
         if len(evidence) >= MAX_PUBLIC_URLS:
             raise gl.vm.UserError("[EXPECTED] Additional evidence limit reached.")
         evidence.append({"url": str(evidence_url).strip(), "note": _clean_text(note, 280)})
+        self._invalidate_verdict(key, record, "Additional evidence changed after assessment.")
         record["additional_evidence"] = evidence
+        record["evidence_version"] = int(record.get("evidence_version", 1)) + 1
         record["updated_at"] = self._now()
         self._save_case(key, record)
 
@@ -143,8 +200,8 @@ class GuardianVerdictRegistry(gl.Contract):
             index += 1
         return output[:120]
 
-    def _fetch_request(self, source_id, url):
-        result = {"source_id": source_id, "url": url, "status": "UNAVAILABLE", "content": ""}
+    def _fetch_request(self, source_id, authority, url, query=""):
+        result = {"source_id": source_id, "authority": authority, "url": url, "query": query, "retrieved_at": self._now(), "status": "UNAVAILABLE", "content": ""}
         try:
             response = gl.nondet.web.request(url, method="GET")
             body = response.body.decode("utf-8", errors="ignore")[:MAX_SOURCE_CHARS]
@@ -152,26 +209,30 @@ class GuardianVerdictRegistry(gl.Contract):
             result["content"] = body
         except Exception:
             result["content"] = "Source could not be fetched by this validator."
+        result["content_hash"] = hashlib.sha256(result["content"].encode("utf-8")).hexdigest()
         return result
 
     def _fetch_rendered(self, source_id, url):
-        result = {"source_id": source_id, "url": url, "status": "UNAVAILABLE", "content": ""}
+        result = {"source_id": source_id, "authority": "SUBMITTED_PUBLIC_SOURCE", "url": url, "query": "", "retrieved_at": self._now(), "status": "UNAVAILABLE", "content": ""}
         try:
             content = str(gl.nondet.web.render(url, mode="text"))[:MAX_SOURCE_CHARS]
             result["status"] = "FETCHED"
             result["content"] = content
         except Exception:
             result["content"] = "Source could not be rendered by this validator."
+        result["content_hash"] = hashlib.sha256(result["content"].encode("utf-8")).hexdigest()
         return result
 
     def fetch_regulatory_evidence(self, manifest):
-        product = self._query_token(manifest.get("product_name", ""))
-        manufacturer = self._query_token(manifest.get("manufacturer", ""))
-        query = product
-        if len(manufacturer) > 0:
-            query = product + "+AND+" + manufacturer
-        url = "https://api.fda.gov/food/enforcement.json?search=product_description:" + query + "&limit=10"
-        evidence = [self._fetch_request("FDA-ENFORCEMENT", url)]
+        terms = []
+        for value in (manifest.get("product_name", ""), manifest.get("manufacturer", ""), manifest.get("barcode", ""), manifest.get("lot_number", "")):
+            token = self._query_token(value)
+            if len(token) > 0:
+                terms.append(token)
+        query = "+AND+".join(terms[:4])
+        endpoint = REGULATORY_ENDPOINTS[manifest.get("product_category")]
+        url = "https://api.fda.gov/" + endpoint + "?search=" + query + "&limit=10"
+        evidence = [self._fetch_request("FDA-" + manifest.get("product_category"), "FDA", url, query)]
         return evidence
 
     def fetch_product_evidence(self, manifest, additional_evidence):
@@ -214,6 +275,7 @@ Safety rules:
 - Missing, conflicting, or unreachable evidence requires UNDETERMINED or USE_CAUTION, never LOW_CONCERN by default.
 - LOW_CONCERN means no material concern was found in the evidence available; it is not a guarantee of safety.
 - Treat authority, sponsorship, claims, seller identity, and recall evidence as separate bounded findings.
+- Independently establish product identity from barcode, lot, manufacturer, product category, and product name before making any other finding. Weak or conflicting identity requires UNDETERMINED or USE_CAUTION.
 - Every source id in the result must exist in SOURCE_EVIDENCE.
 - Explanatory prose can vary, but classifications must be evidence-grounded.
 
@@ -236,6 +298,10 @@ Return strict JSON only:
   "sponsorship_status": "DISCLOSED | UNDISCLOSED_SIGNALS | NONE_FOUND | UNKNOWN",
   "seller_status": "VERIFIED | LIMITED_INFORMATION | HIGH_RISK | UNKNOWN",
   "recommended_action_code": "PROCEED | VERIFY_FIRST | AVOID | STOP_USE | SEEK_PROFESSIONAL_HELP",
+  "identity_match": "CONFIRMED | PARTIAL | UNVERIFIED | CONFLICTING",
+  "canonical_product_name": "matched name or empty when unverified",
+  "canonical_manufacturer": "matched manufacturer or empty when unverified",
+  "canonical_product_category": "FOOD | SUPPLEMENT | DRUG | MEDICAL_DEVICE or empty when unverified",
   "source_ids": ["source id from SOURCE_EVIDENCE"],
   "policy_version": "{POLICY_VERSION}",
   "summary": "short consumer-facing finding",
@@ -253,7 +319,14 @@ Return strict JSON only:
             "sponsorship_status": "UNKNOWN",
             "seller_status": "UNKNOWN",
             "recommended_action_code": "VERIFY_FIRST",
+            "identity_match": "UNVERIFIED",
+            "canonical_product_name": "",
+            "canonical_manufacturer": "",
+            "canonical_product_category": "",
             "source_ids": [],
+            "provenance": [],
+            "evidence_version": 0,
+            "evidence_snapshot_hash": "0" * 64,
             "policy_version": POLICY_VERSION,
             "summary": "Guardian Lens could not reach a reliable assessment.",
             "reasoning": _clean_text(reason, 1000),
@@ -271,6 +344,8 @@ Return strict JSON only:
             return False
         if result.get("recommended_action_code") not in ACTION_CODES or result.get("policy_version") != POLICY_VERSION:
             return False
+        if result.get("identity_match") not in IDENTITY_MATCHES:
+            return False
         if result.get("recall_status") == "CONFIRMED":
             if result.get("risk_level") != "CRITICAL_ALERT" or result.get("recommended_action_code") != "STOP_USE":
                 return False
@@ -287,6 +362,8 @@ Return strict JSON only:
             if str(source_ids[source_index]) not in available_ids:
                 return False
             source_index += 1
+        if result.get("identity_match") == "CONFIRMED" and len(source_ids) == 0:
+            return False
         if len(_clean_text(result.get("summary", ""), 500)) == 0:
             return False
         if len(_clean_text(result.get("reasoning", ""), 1200)) == 0:
@@ -309,12 +386,31 @@ Return strict JSON only:
         result["uncertainties"] = cleaned
         return result
 
+    def _provenance(self, evidence, source_ids):
+        sources = []
+        index = 0
+        while index < len(evidence):
+            item = evidence[index]
+            if item.get("source_id") in source_ids:
+                sources.append({
+                    "source_id": item.get("source_id"),
+                    "authority": item.get("authority"),
+                    "url": item.get("url"),
+                    "query": item.get("query", ""),
+                    "content_hash": item.get("content_hash"),
+                    "retrieved_at": item.get("retrieved_at"),
+                    "supported_findings": list(SUPPORTED_FINDINGS),
+                })
+            index += 1
+        return sources
+
     def leader_assessment(self, manifest, additional_evidence):
         evidence = self.fetch_regulatory_evidence(manifest) + self.fetch_product_evidence(manifest, additional_evidence)
         if self._all_sources_unavailable(evidence):
             return self._undetermined("Every public source was unavailable to the leader validator.")
         result = gl.nondet.exec_prompt(self.build_assessment_prompt(manifest, evidence), response_format="json")
         normalized = self._normalize_result(result, evidence)
+        normalized["provenance"] = self._provenance(evidence, normalized.get("source_ids", []))
         normalized["_source_inventory"] = evidence
         return normalized
 
@@ -331,6 +427,11 @@ First reason independently from the evidence. Then evaluate CANDIDATE_VERDICT. R
   "valid": true,
   "risk_level": "your independently selected risk level",
   "recall_status": "your independently selected recall status",
+  "identity_match": "your independently selected identity match",
+  "authority_status": "your independently selected authority status",
+  "claims_status": "your independently selected claims status",
+  "sponsorship_status": "your independently selected sponsorship status",
+  "seller_status": "your independently selected seller status",
   "recommended_action_code": "your independently selected action",
   "policy_version": "GL-POLICY-1"
 }
@@ -342,6 +443,9 @@ First reason independently from the evidence. Then evaluate CANDIDATE_VERDICT. R
             return False
         if verification.get("recall_status") != candidate.get("recall_status"):
             return False
+        for field in ("identity_match", "authority_status", "claims_status", "sponsorship_status", "seller_status"):
+            if verification.get(field) != candidate.get(field):
+                return False
         if verification.get("recommended_action_code") != candidate.get("recommended_action_code"):
             return False
         return verification.get("policy_version") == POLICY_VERSION
@@ -372,6 +476,8 @@ First reason independently from the evidence. Then evaluate CANDIDATE_VERDICT. R
         record["status"] = "ASSESSING"
         self._save_case(key, record)
         verdict = self._adjudicate(manifest, record.get("additional_evidence", []))
+        verdict["evidence_version"] = int(record.get("evidence_version", 1))
+        verdict["evidence_snapshot_hash"] = self._case_snapshot_hash(manifest, record.get("additional_evidence", []))
         record["status"] = "ASSESSED" if verdict.get("risk_level") != "UNDETERMINED" else "UNDETERMINED"
         record["updated_at"] = self._now()
         self._save_case(key, record)
@@ -431,6 +537,8 @@ First reason independently from the evidence. Then evaluate CANDIDATE_VERDICT. R
         manifest = json.loads(record["manifest_json"])
         combined_evidence = record.get("additional_evidence", []) + entry.get("evidence", [])
         verdict = self._adjudicate(manifest, combined_evidence)
+        verdict["evidence_version"] = int(record.get("evidence_version", 1))
+        verdict["evidence_snapshot_hash"] = self._case_snapshot_hash(manifest, combined_evidence)
         entry["appeal_verdict"] = verdict
         entry["status"] = "RESOLVED"
         entry["resolved_at"] = self._now()
@@ -483,6 +591,7 @@ First reason independently from the evidence. Then evaluate CANDIDATE_VERDICT. R
             "case_id": key,
             "product_name": manifest.get("product_name", ""),
             "manufacturer": manifest.get("manufacturer", ""),
+            "product_category": manifest.get("product_category", ""),
             "seller": manifest.get("seller", ""),
             "verdict": json.loads(self.verdicts[key]),
             "status": case_record.get("status", ""),

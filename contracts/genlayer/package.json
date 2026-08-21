@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "node scripts/lint-contracts.mjs",
     "test": "python -m unittest discover -s tests -p test_*.py",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:v2": "node scripts/deploy-v2-registry.mjs"
   },
   "dependencies": {
     "genlayer-js": "^1.1.8"
