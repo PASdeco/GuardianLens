@@ -85,12 +85,13 @@ const sessionHash = await client.writeContract({
 });
 await wait(sessionHash, "Relay session authorization");
 
-const manifest = {
+const manifestPayload = {
   evidence_root_hash: createHash("sha256").update(`${caseId}:evidence`).digest("hex"),
   source_manifest_hash: createHash("sha256").update(`${caseId}:sources`).digest("hex"),
-  policy_version: "GL-POLICY-1",
+  policy_version: "GL-POLICY-2",
   product_name: "Tylenol Extra Strength Caplets",
   manufacturer: "Kenvue",
+  product_category: "DRUG",
   seller: "Official manufacturer product page",
   barcode: "",
   lot_number: "",
@@ -98,7 +99,11 @@ const manifest = {
   authority_claims: [],
   sponsorship_signals: [],
   submitted_source_urls: ["https://www.tylenol.com/products/tylenol-extra-strength-caplets"],
-  regulatory_query_terms: ["Tylenol Extra Strength", "Kenvue"],
+  regulatory_query_terms: ["Tylenol Extra Strength", "Kenvue", "DRUG"],
+};
+const manifest = {
+  ...manifestPayload,
+  manifest_hash: createHash("sha256").update(JSON.stringify(manifestPayload)).digest("hex"),
   submitted_at: new Date().toISOString()
 };
 

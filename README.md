@@ -36,9 +36,9 @@ These addresses are the current testnet deployment used by the application.
 | --- | --- | --- |
 | GuardianAccessPass | [`0xdaeb9439...eE0F3d`](https://explorer-studio.genlayer.com/address/0xdaeb94393b21c2A3D62EbD3132Ecb2D362eE0F3d) | [`0xbf01e2...02ddbf`](https://explorer-studio.genlayer.com/tx/0xbf01e2bb29a747e8a267414e93bb5615dfcf8eb43440c60195f66d624e02ddbf) |
 | GuardianRelayRouter | [`0x0A123de5...b88cf`](https://explorer-studio.genlayer.com/address/0x0A123de5fc7c4C8290c990129770b8b9cEaB88cf) | [`0x2abfba...af1d5`](https://explorer-studio.genlayer.com/tx/0x2abfba2582591c322682bd0d06ac5caab5bd6ef5acdcb5200c5aab0aa61af1d) |
-| GuardianVerdictRegistry | [`0xc113a796...4d6e9`](https://explorer-studio.genlayer.com/address/0xc113a796aC8Bd86de8875F3e37b9Ac182244d6e9) | [`0x0412ef...84b6f`](https://explorer-studio.genlayer.com/tx/0x0412ef90b459eb6d0b894d8dbc5b29531140f388cae7f9b9aab579e723884b6f) |
+| GuardianVerdictRegistry V2 | [`0x52fD647b...8295`](https://explorer-studio.genlayer.com/address/0x52fD647bc2A3AA1a4eCf2C8a25609C8f9E288295) | [`0xd1446c...e5df`](https://explorer-studio.genlayer.com/tx/0xd1446c61b9c6465ccc0feba1831607cbc93c161c738eea874600a6c63eafe5df) |
 
-The deployment manifest is stored at [`contracts/genlayer/deployment.studionet.json`](contracts/genlayer/deployment.studionet.json). Testnet state may be redeployed or reset as the GenLayer network evolves.
+The active V2 registry manifest is stored at [`contracts/genlayer/deployment.studionet.v2.json`](contracts/genlayer/deployment.studionet.v2.json). The V1 deployment remains a historical testnet record.
 
 ## How it works
 
@@ -83,8 +83,10 @@ Every completed assessment uses bounded fields instead of an unexplained numeric
   "sponsorship_status": "DISCLOSED | UNDISCLOSED_SIGNALS | NONE_FOUND | UNKNOWN",
   "seller_status": "VERIFIED | LIMITED_INFORMATION | HIGH_RISK | UNKNOWN",
   "recommended_action_code": "PROCEED | VERIFY_FIRST | AVOID | STOP_USE | SEEK_PROFESSIONAL_HELP",
-  "source_ids": ["FDA-ENFORCEMENT", "PRODUCT-1"],
-  "policy_version": "GL-POLICY-1",
+  "identity_match": "CONFIRMED | PARTIAL | UNVERIFIED | CONFLICTING",
+  "provenance": [{ "source_id": "FDA-DRUG", "content_hash": "..." }],
+  "evidence_snapshot_hash": "...",
+  "policy_version": "GL-POLICY-2",
   "summary": "...",
   "reasoning": "...",
   "uncertainties": ["..."]
@@ -103,7 +105,7 @@ The PWA includes:
 - `History`: local scan history and transaction lifecycle;
 - `Watchlist`: products available for scheduled recall checks;
 - `Profile`: Privy or injected-wallet sign-in, one-time access activation, and light/dark appearance;
-- consumer reports showing findings, source IDs, uncertainties, policy version, and GenLayer status;
+- consumer reports showing identity confidence, immutable evidence snapshots, auditable source provenance, uncertainties, policy version, and GenLayer status;
 - challenge and appeal contract surfaces, with original verdict preservation at the contract layer.
 
 The lifecycle distinguishes `Accepted` from `Finalized`: acceptance means consensus output is available; finalization means the transaction has reached Studionet's terminal state.
