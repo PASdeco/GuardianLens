@@ -169,6 +169,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
             <section className="breakdown-panel">
               <span className="eyebrow">Risk breakdown</span>
               {[
+                ["Identity", assessment.identity_match],
                 ["Recall", assessment.recall_status],
                 ["Health claims", assessment.claims_status],
                 ["Authority", assessment.authority_status],
@@ -179,7 +180,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
           </div>
 
           <div className="evidence-grid">
-            <section><div className="section-heading"><div><span className="eyebrow">Traceable evidence</span><h2>Supporting sources</h2></div><FileCheck2 /></div>{assessment.source_ids.map((source) => <div className="source-row" key={source}><span><Globe2 /></span><div><strong>{source}</strong><small>Source retrieved independently by validators</small></div><ExternalLink /></div>)}</section>
+            <section><div className="section-heading"><div><span className="eyebrow">Traceable evidence</span><h2>Supporting sources</h2></div><FileCheck2 /></div>{assessment.provenance.map((source) => <a className="source-row" key={source.source_id} href={source.url} target="_blank" rel="noreferrer"><span><Globe2 /></span><div><strong>{source.source_id} · {source.authority}</strong><small>{source.supported_findings.join(", ")} · snapshot {source.content_hash.slice(0, 12)}</small></div><ExternalLink /></a>)}</section>
             <section><div className="section-heading"><div><span className="eyebrow">Uncertainty</span><h2>What remains unknown</h2></div><LockKeyhole /></div><ul className="uncertainty-list">{assessment.uncertainties.map((item) => <li key={item}><span><Check /></span>{item}</li>)}</ul><p className="policy-line">Checked under {assessment.policy_version}</p></section>
           </div>
         </>

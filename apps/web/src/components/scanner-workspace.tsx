@@ -45,6 +45,7 @@ export function ScannerWorkspace() {
   const [productUrl, setProductUrl] = useState("");
   const [productName, setProductName] = useState("");
   const [manufacturer, setManufacturer] = useState("");
+  const [productCategory, setProductCategory] = useState("SUPPLEMENT");
   const [seller, setSeller] = useState("");
   const [barcode, setBarcode] = useState("");
   const [lotNumber, setLotNumber] = useState("");
@@ -99,7 +100,7 @@ export function ScannerWorkspace() {
         throw new Error("Your 20 GEN access payment is still finalizing. Wait until Profile shows ‘Access active’, then submit the scan again.");
       }
       const claims = claimsText.split(/\n|;/).map((value) => value.trim()).filter(Boolean);
-      const manifest = await buildEvidenceManifest({ productName, manufacturer, seller, productUrl, barcode, lotNumber, claims, sponsorshipSignals: commercialSignals, evidence });
+      const manifest = await buildEvidenceManifest({ productName, manufacturer, productCategory, seller, productUrl, barcode, lotNumber, claims, sponsorshipSignals: commercialSignals, evidence });
 
       const recallResponse = await fetch(`/api/recalls/search?product=${encodeURIComponent(productName)}&manufacturer=${encodeURIComponent(manufacturer)}`);
       const recallData = recallResponse.ok ? await recallResponse.json() as { results: RecallPreview[] } : { results: [] };
@@ -213,6 +214,7 @@ export function ScannerWorkspace() {
           <div className="form-grid">
             <label><span>Product name</span><input required value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="e.g. Daily immune gummies" /></label>
             <label><span>Manufacturer</span><input value={manufacturer} onChange={(event) => setManufacturer(event.target.value)} placeholder="Company on the label" /></label>
+            <label><span>Product category</span><select value={productCategory} onChange={(event) => setProductCategory(event.target.value)}><option value="SUPPLEMENT">Supplement</option><option value="FOOD">Food</option><option value="DRUG">Drug</option><option value="MEDICAL_DEVICE">Medical device</option></select></label>
             <label><span>Seller</span><input value={seller} onChange={(event) => setSeller(event.target.value)} placeholder="Store or marketplace seller" /></label>
             <label><span>Lot number</span><input value={lotNumber} onChange={(event) => setLotNumber(event.target.value)} placeholder="Printed lot or batch" /></label>
           </div>

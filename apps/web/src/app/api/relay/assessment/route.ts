@@ -77,20 +77,25 @@ export async function POST(request: NextRequest) {
 
     const now = Math.floor(Date.now() / 1000);
     const sessionSeed = `${ownerWallet}:${Math.floor(now / 86400)}`;
-    const sessionId = `guardian-${createHash("sha256").update(sessionSeed).digest("hex").slice(0, 48)}`;
+    let sessionId = `guardian-${createHash("sha256").update(sessionSeed).digest("hex").slice(0, 48)}`;
     const authorizationHash = createHash("sha256").update(authorizationSignature).digest("hex");
     let session = await readRelaySession(sessionId, routerAddress);
-    if (!session || Number(session.expires_at || 0) <= now + 120) {
+    const sessionAllowsRegistry = Array.isArray(session?.allowed_contracts)
+      && session.allowed_contracts.some((address) => String(address).toLowerCase() === registryAddress.toLowerCase());
+    if (!session || Number(session.expires_at || 0) <= now + 120 || !sessionAllowsRegistry) {
+      // Include the registry in the session identity so a contract upgrade cannot reuse a stale allowlist.
+      const registrySessionId = `${sessionId}-${registryAddress.slice(2, 10).toLowerCase()}`;
       await authorizeRelaySession({
         relayerPrivateKey,
         routerAddress,
-        sessionId,
+        sessionId: registrySessionId,
         logicalUser: ownerWallet,
         allowedContracts: [registryAddress],
         expiresAt: now + 86400,
         authorizationHash
       });
-      session = await readRelaySession(sessionId, routerAddress);
+      session = await readRelaySession(registrySessionId, routerAddress);
+      sessionId = registrySessionId;
     }
     if (!session) throw new Error("Relay session was not readable after authorization.");
 
