@@ -2,7 +2,7 @@
 
 Scanner-first health-commerce safety verification powered by GenLayer validator consensus.
 
-Guardian Lens helps consumers inspect medicines, supplements, and health-commerce products before purchase or use. Evidence is prepared privately in the browser, public sources are retrieved independently by GenLayer validators, and the final bounded assessment is stored on GenLayer Studionet.
+Guardian Lens helps consumers inspect medicines, supplements, and health-commerce products before purchase or use. Evidence is prepared privately in the browser, public sources are retrieved independently by GenLayer validators, and the final bounded assessment is stored on GenLayer Studionet. The production web app is available at [guardianlen.vercel.app](https://guardianlen.vercel.app/).
 
 | Surface | Value |
 | --- | --- |
@@ -95,6 +95,13 @@ Every completed assessment uses bounded fields instead of an unexplained numeric
 
 `CONFIRMED` recalls must map to `CRITICAL_ALERT` and `STOP_USE`. Validators may phrase summaries differently, but critical bounded classifications must agree. If they cannot, the safe outcome is `UNDETERMINED`.
 
+### V2 verification guarantees
+
+- Identity is independently evaluated from product name, manufacturer, barcode, lot number, and product category.
+- Validators agree on identity, authority, claims, sponsorship, and seller findings as well as risk, recall, and action.
+- Cited evidence is persisted with its authority, request query, URL, retrieval time, and SHA-256 content hash.
+- An active verdict is tied to an evidence version and immutable snapshot hash. A manifest edit or added evidence supersedes that verdict and requires reassessment.
+
 ## Product experience
 
 The PWA includes:
@@ -162,10 +169,10 @@ Fund a deployer and a separate relayer with faucet-provided test GEN, then set t
 ```powershell
 npm run contract:lint
 npm run contract:test
-npm --workspace @guardian/contracts run deploy
+npm --workspace @guardian/contracts run deploy:v2
 ```
 
-The deployment script validates contract schemas, rejects GenVM execution failures, verifies deployed schemas, writes the deployment manifest, and updates the public contract addresses only after successful deployment.
+`deploy:v2` deploys only a new verdict registry, preserving the existing access pass and relay router. It validates the schema, rejects GenVM execution failures, verifies the deployed schema, writes `deployment.studionet.v2.json`, and updates the active registry address only after success. Use the full `deploy` command only when intentionally replacing all three contracts.
 
 ## Verify the project
 
