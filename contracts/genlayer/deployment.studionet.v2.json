@@ -3,8 +3,8 @@
   "chainId": 61999,
   "policyVersion": "GL-POLICY-2",
   "verdictRegistry": {
-    "hash": "0xd1446c61b9c6465ccc0feba1831607cbc93c161c738eea874600a6c63eafe5df",
-    "address": "0x52fD647bc2A3AA1a4eCf2C8a25609C8f9E288295"
+    "hash": "0xbf03e9816423fe2bd7463482cedeb07cb5d517b9543bab6ea81e51d337591699",
+    "address": "0xF1B88fF878420f0774aB19A10ac3D6Ca1D307B53"
   },
-  "deployedAt": "2026-08-21T04:48:40.140Z"
+  "deployedAt": "2026-08-21T20:35:02.617Z"
 }
