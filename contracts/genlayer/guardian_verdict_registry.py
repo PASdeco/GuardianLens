@@ -433,7 +433,7 @@ First reason independently from the evidence. Then evaluate CANDIDATE_VERDICT. R
   "sponsorship_status": "your independently selected sponsorship status",
   "seller_status": "your independently selected seller status",
   "recommended_action_code": "your independently selected action",
-  "policy_version": "GL-POLICY-1"
+  "policy_version": """ + POLICY_VERSION + """
 }
 """
         verification = gl.nondet.exec_prompt(verification_prompt, response_format="json")
