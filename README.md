@@ -36,7 +36,7 @@ These addresses are the current testnet deployment used by the application.
 | --- | --- | --- |
 | GuardianAccessPass | [`0xdaeb9439...eE0F3d`](https://explorer-studio.genlayer.com/address/0xdaeb94393b21c2A3D62EbD3132Ecb2D362eE0F3d) | [`0xbf01e2...02ddbf`](https://explorer-studio.genlayer.com/tx/0xbf01e2bb29a747e8a267414e93bb5615dfcf8eb43440c60195f66d624e02ddbf) |
 | GuardianRelayRouter | [`0x0A123de5...b88cf`](https://explorer-studio.genlayer.com/address/0x0A123de5fc7c4C8290c990129770b8b9cEaB88cf) | [`0x2abfba...af1d5`](https://explorer-studio.genlayer.com/tx/0x2abfba2582591c322682bd0d06ac5caab5bd6ef5acdcb5200c5aab0aa61af1d) |
-| GuardianVerdictRegistry V2 | [`0x52fD647b...8295`](https://explorer-studio.genlayer.com/address/0x52fD647bc2A3AA1a4eCf2C8a25609C8f9E288295) | [`0xd1446c...e5df`](https://explorer-studio.genlayer.com/tx/0xd1446c61b9c6465ccc0feba1831607cbc93c161c738eea874600a6c63eafe5df) |
+| GuardianVerdictRegistry V2 | [`0xF1B88fF8...7B53`](https://explorer-studio.genlayer.com/address/0xF1B88fF878420f0774aB19A10ac3D6Ca1D307B53) | [`0xbf03e9...1699`](https://explorer-studio.genlayer.com/tx/0xbf03e9816423fe2bd7463482cedeb07cb5d517b9543bab6ea81e51d337591699) |
 
 The active V2 registry manifest is stored at [`contracts/genlayer/deployment.studionet.v2.json`](contracts/genlayer/deployment.studionet.v2.json). The V1 deployment remains a historical testnet record.
 
