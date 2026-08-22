@@ -18,16 +18,16 @@ Use a faucet-funded deployer and a separate faucet-funded relayer. Set `DEPLOYER
 ```powershell
 npm run contract:lint
 npm run contract:test
-npm --workspace @guardian/contracts run deploy
+npm --workspace @guardian/contracts run deploy:v2
 ```
 
-Deployment validates schemas, waits for accepted transactions, rejects GenVM failures, verifies each deployed schema, writes `contracts/genlayer/deployment.studionet.json`, and updates public contract address variables after all three contracts succeed.
+`deploy:v2` deploys a new `GuardianVerdictRegistry` without replacing the existing access pass or relay router. It validates the schema, waits for acceptance, rejects GenVM failures, verifies the deployed schema, writes `contracts/genlayer/deployment.studionet.v2.json`, and updates `NEXT_PUBLIC_VERDICT_REGISTRY_ADDRESS` only after success. V1 is retained as a historical record.
 
 ## Web hosting
 
-Deploy the repository as a Next.js application on a free hosting tier. Configure the variables from `.env.example` in the host’s server and browser environments. Keep `DEPLOYER_PRIVATE_KEY`, `RELAYER_PRIVATE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` server-only.
+Deploy the repository as a Next.js application on a free hosting tier. The current production deployment is [guardianlen.vercel.app](https://guardianlen.vercel.app/). Configure the variables from `.env.example` in the host’s server and browser environments. Keep `DEPLOYER_PRIVATE_KEY`, `RELAYER_PRIVATE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` server-only.
 
-The browser needs the `NEXT_PUBLIC_PRIVY_*`, `NEXT_PUBLIC_GENLAYER_RPC_URL`, and deployed contract address variables. The server needs `GENLAYER_RPC_URL`, relayer credentials, and any Supabase/cron values used by the selected deployment.
+The browser needs the `NEXT_PUBLIC_PRIVY_*`, `NEXT_PUBLIC_GENLAYER_RPC_URL`, and deployed contract address variables. The server needs `GENLAYER_RPC_URL`, relayer credentials, and any Supabase/cron values used by the selected deployment. On a registry upgrade, update `NEXT_PUBLIC_VERDICT_REGISTRY_ADDRESS` in the host before redeploying; the relay creates registry-specific sessions so an old allowlist cannot be reused.
 
 ## Supabase (optional durable backend)
 
